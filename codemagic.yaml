@@ -1,0 +1,86 @@
+workflows:
+  ios-wordpower-release:
+    name: Word Power iOS App Build
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      ios_signing:
+        distribution_type: ad_hoc
+        bundle_identifier: com.aistudio.wordpower
+      vars:
+        XCODE_WORKSPACE: "ios/WordPower.xcworkspace"
+        XCODE_PROJECT: "ios/WordPower.xcodeproj"
+        XCODE_SCHEME: "WordPower"
+        APP_ID: "com.aistudio.wordpower"
+      xcode: latest
+      cocoapods: default
+    triggering:
+      events:
+        - push
+        - tag
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+    scripts:
+      - name: Set up code signing settings on Xcode project
+        script: |
+          echo "Setting up build environment..."
+          xcodebuild -version
+      - name: Build iOS App (.ipa / Archive)
+        script: |
+          cd ios
+          xcodebuild \
+            -project WordPower.xcodeproj \
+            -scheme WordPower \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath "$CM_BUILD_DIR/build/WordPower.xcarchive" \
+            archive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Export Application Artifacts
+        script: |
+          cd "$CM_BUILD_DIR/build"
+          if [ -d "WordPower.xcarchive" ]; then
+            zip -r "$CM_BUILD_DIR/WordPower-iOS-Archive.zip" WordPower.xcarchive
+            echo "Successfully packaged iOS xcarchive!"
+          fi
+    artifacts:
+      - build/**/WordPower*.zip
+      - build/**/WordPower*.ipa
+      - build/**/WordPower*.app
+      - "*.zip"
+    publishing:
+      email:
+        recipients:
+          - rajanpariyar.com.np@gmail.com
+        notify:
+          success: true
+          failure: true
+
+  ios-simulator-build:
+    name: Word Power iOS Simulator Build
+    max_build_duration: 30
+    instance_type: mac_mini_m2
+    environment:
+      xcode: latest
+    scripts:
+      - name: Build for iOS Simulator
+        script: |
+          cd ios
+          xcodebuild \
+            -project WordPower.xcodeproj \
+            -scheme WordPower \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -derivedDataPath "$CM_BUILD_DIR/derived_data" \
+            build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO
+          
+          cd "$CM_BUILD_DIR/derived_data/Build/Products/Debug-iphonesimulator"
+          zip -r "$CM_BUILD_DIR/WordPower-Simulator.app.zip" WordPower.app
+    artifacts:
+      - "*.zip"
